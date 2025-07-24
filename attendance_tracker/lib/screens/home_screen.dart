@@ -130,6 +130,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             _createSlideRoute(const AddSubjectScreen()),
           ),
         ),
+        // In the _buildAppBar method, add this button between the analytics and add buttons:
+        _buildGlassMorphicButton(
+          icon: Icons.calendar_today_rounded,
+          onPressed: () => _showAddDayDialog(context),
+        ),
         const SizedBox(width: 16),
       ],
     );
@@ -613,26 +618,163 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildActionButtons(int index) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildActionButton(
-            label: 'Present',
-            icon: Icons.check_circle_rounded,
-            color: const Color(0xFF4ECDC4),
-            onPressed: () => _updateAttendance(index, true),
+    return Container(
+      width: double.infinity,
+      child: _buildActionButton(
+        label: 'Mark Attendance',
+        icon: Icons.how_to_reg_rounded,
+        color: const Color(0xFF6C63FF),
+        onPressed: () => _showAttendanceDialog(index),
+      ),
+    );
+  }
+
+// Add this new method for the attendance dialog:
+  void _showAttendanceDialog(int index) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (context) {
+        final subject = subjectsBox.getAt(index);
+        if (subject == null) return const SizedBox();
+
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1A1A2E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: Colors.white.withOpacity(0.1),
+              width: 1,
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildActionButton(
-            label: 'Absent',
-            icon: Icons.cancel_rounded,
-            color: const Color(0xFFFF6B6B),
-            onPressed: () => _updateAttendance(index, false),
+          title: Text(
+            subject.name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
           ),
+          content: const Text(
+            'Mark your attendance for today:',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 16,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.7),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Container(
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFF6B6B), Color(0xFFFF5252)],
+                ),
+              ),
+              child: TextButton(
+                onPressed: () {
+                  _updateAttendance(index, false);
+                  Navigator.pop(context);
+                  _showAttendanceSnackbar(subject.name, false);
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(
+                      Icons.cancel_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Absent',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF4ECDC4), Color(0xFF26A69A)],
+                ),
+              ),
+              child: TextButton(
+                onPressed: () {
+                  _updateAttendance(index, true);
+                  Navigator.pop(context);
+                  _showAttendanceSnackbar(subject.name, true);
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(
+                      Icons.check_circle_rounded,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                    SizedBox(width: 6),
+                    Text(
+                      'Present',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+// Add this method for better feedback:
+  void _showAttendanceSnackbar(String subjectName, bool attended) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: attended
+            ? const Color(0xFF4ECDC4).withOpacity(0.9)
+            : const Color(0xFFFF6B6B).withOpacity(0.9),
+        content: Row(
+          children: [
+            Icon(
+              attended ? Icons.check_circle_rounded : Icons.cancel_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Marked ${attended ? 'Present' : 'Absent'} for $subjectName',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
         ),
-      ],
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
@@ -873,6 +1015,393 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         attendedController,
         missedController,
       ),
+    );
+  }
+
+  void _showAddDayDialog(BuildContext context) {
+    final Map<int, int> attendanceMap =
+        {}; // 0: No lecture, 1: Attended, 2: Skipped
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final subjects = subjectsBox.values.toList().cast<Subject>();
+
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1A1A2E),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1,
+                ),
+              ),
+              title: const Text(
+                'Mark Today\'s Attendance',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height:
+                    MediaQuery.of(context).size.height * 0.6, // Limit height
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Select attendance status for each subject:',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Expanded(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: subjects.length,
+                        itemBuilder: (context, index) {
+                          final subject = subjects[index];
+                          final selectedOption = attendanceMap[index] ?? 0;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              color: Colors.black.withOpacity(0.2),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.1),
+                                width: 1,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  subject.name,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    _buildAttendanceOption(
+                                      icon: Icons.event_busy_rounded,
+                                      label: 'No Lecture',
+                                      isSelected: selectedOption == 0,
+                                      color: Colors.white.withOpacity(0.6),
+                                      onTap: () {
+                                        setState(() {
+                                          attendanceMap[index] = 0;
+                                        });
+                                      },
+                                    ),
+                                    _buildAttendanceOption(
+                                      icon: Icons.check_circle_rounded,
+                                      label: 'Attended',
+                                      isSelected: selectedOption == 1,
+                                      color: const Color(0xFF4ECDC4),
+                                      onTap: () {
+                                        setState(() {
+                                          attendanceMap[index] = 1;
+                                        });
+                                      },
+                                    ),
+                                    _buildAttendanceOption(
+                                      icon: Icons.cancel_rounded,
+                                      label: 'Skipped',
+                                      isSelected: selectedOption == 2,
+                                      color: const Color(0xFFFF6B6B),
+                                      onTap: () {
+                                        setState(() {
+                                          attendanceMap[index] = 2;
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.7),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF6C63FF), Color(0xFF00D4FF)],
+                    ),
+                  ),
+                  child: TextButton(
+                    onPressed: () {
+                      _processDayAttendance(attendanceMap);
+                      Navigator.pop(context);
+                    },
+                    child: const Text(
+                      'Save',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAttendanceOption({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: isSelected ? color.withOpacity(0.2) : Colors.transparent,
+            border: Border.all(
+              color: isSelected ? color : Colors.white.withOpacity(0.2),
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? color : Colors.white.withOpacity(0.6),
+                size: 20,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? color : Colors.white.withOpacity(0.6),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _processDayAttendance(Map<int, int> attendanceMap) {
+    int attendedCount = 0;
+    int skippedCount = 0;
+
+    attendanceMap.forEach((index, status) {
+      final subject = subjectsBox.getAt(index);
+      if (subject != null) {
+        switch (status) {
+          case 1: // Attended
+            subjectsBox.putAt(
+              index,
+              Subject(
+                name: subject.name,
+                attended: subject.attended + 1,
+                missed: subject.missed,
+                requiredAttendance: subject.requiredAttendance,
+              ),
+            );
+            attendedCount++;
+            break;
+          case 2: // Skipped
+            subjectsBox.putAt(
+              index,
+              Subject(
+                name: subject.name,
+                attended: subject.attended,
+                missed: subject.missed + 1,
+                requiredAttendance: subject.requiredAttendance,
+              ),
+            );
+            skippedCount++;
+            break;
+          // case 0: No lecture - no changes needed
+        }
+      }
+    });
+
+    // Show success message with summary
+    String message = 'Attendance updated';
+    if (attendedCount > 0 || skippedCount > 0) {
+      List<String> parts = [];
+      if (attendedCount > 0) parts.add('$attendedCount attended');
+      if (skippedCount > 0) parts.add('$skippedCount skipped');
+      message = '${parts.join(', ')} - ${message.toLowerCase()}';
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: const Color(0xFF4ECDC4).withOpacity(0.9),
+        content: Text(
+          message,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Widget _buildDayTextField(TextEditingController controller) {
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: Colors.black.withOpacity(0.2),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.1),
+          width: 1,
+        ),
+      ),
+      child: TextFormField(
+        controller: controller,
+        decoration: InputDecoration(
+          labelText: 'Day (e.g., Monday)',
+          labelStyle: TextStyle(
+            color: Colors.white.withOpacity(0.8),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+          prefixIcon: const Icon(
+            Icons.calendar_today_rounded,
+            color: Colors.white70,
+            size: 20,
+          ),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+        ),
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'Please enter a day';
+          }
+          return null;
+        },
+      ),
+    );
+  }
+
+  Widget _buildSubjectAttendanceField({
+    required Subject subject,
+    required ValueChanged<String> onChanged,
+  }) {
+    final controller = TextEditingController();
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            subject.name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 80,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: Colors.black.withOpacity(0.2),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.1),
+                width: 1,
+              ),
+            ),
+            child: TextFormField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+              decoration: const InputDecoration(
+                hintText: '0',
+                hintStyle: TextStyle(
+                  color: Colors.white54,
+                  fontSize: 16,
+                ),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
+              ),
+              onChanged: onChanged,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return '';
+                }
+                if (int.tryParse(value) == null) {
+                  return 'Invalid';
+                }
+                return null;
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 
