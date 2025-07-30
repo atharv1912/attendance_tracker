@@ -1,5 +1,5 @@
 # GoNoGo Attendance Tracker
-[![Ask DeepWiki](https://devin.ai/assets/askdeepwiki.png)](https://deepwiki.com/atharv1912/attendance_tracker.git)
+
 
 GoNoGo is a smart, cross-platform attendance tracking application built with Flutter. It helps students monitor their class attendance for multiple subjects, providing real-time percentage calculations and intelligent insights.
 
